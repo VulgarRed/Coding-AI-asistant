@@ -1,89 +1,105 @@
-"""Asistente Virtual de la Clase.
+"""
+Asistente de Programación con IA
+--------------------------------
+Aplicación de chat en Streamlit que usa la API de Groq con el modelo
+`openai/gpt-oss-20b`. Ayuda a escribir, explicar y modificar código en
+cualquier lenguaje, y a practicar resolución de problemas de ciberseguridad.
 
-Aplicación de chat en Streamlit que consulta el modelo openai/gpt-oss-20b
-a través de la API de Groq y conserva el historial durante la sesión.
+Requiere Python 3.11, streamlit y groq.
+La clave de API se lee de st.secrets["LLAVE_PROFESOR"].
 """
 
 import streamlit as st
 from groq import (
     APIConnectionError,
     APIStatusError,
-    APITimeoutError,
     AuthenticationError,
     Groq,
     RateLimitError,
 )
 
-# ----------------------------------------------------------------------------
-# Configuración general
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Configuración
+# ---------------------------------------------------------------------------
 MODELO = "openai/gpt-oss-20b"
 NOMBRE_SECRETO = "LLAVE_PROFESOR"
-MAX_MENSAJES_CONTEXTO = 20  # Últimos mensajes que se envían al modelo.
+MAX_MENSAJES_HISTORIAL = 20  # Cantidad máxima de mensajes enviados como contexto
 
 PROMPT_SISTEMA = (
-    "Eres el Asistente Virtual de la Clase, un tutor académico amable, claro "
-    "y paciente. Responde siempre en español, de forma precisa y bien "
-    "estructurada, usando ejemplos cuando ayuden a comprender. Si no sabes "
-    "algo o la pregunta es ambigua, dilo con honestidad y pide aclaraciones."
+    "You are an expert assistant in programming and cybersecurity. "
+    "ALWAYS answer in English, no matter which language the user writes in, "
+    "and keep your answers clear and well organized. "
+    "You can write, explain, debug, optimize and modify code in any "
+    "programming language (Python, JavaScript, Java, C, C++, C#, Go, Rust, "
+    "PHP, SQL, Bash, PowerShell, etc.). When you provide code, make it "
+    "complete and functional, inside code blocks with the language "
+    "specified, and briefly explain what it does. When the user asks you to "
+    "modify code, return the full modified version and summarize the "
+    "changes you made.\n\n"
+    "In cybersecurity, focus on defensive and educational practice: "
+    "problem solving, best-practice suggestions, secure code review, "
+    "analysis of common vulnerabilities (OWASP Top 10), hardening, basic "
+    "cryptography, CTF-style challenges, personal labs and authorized "
+    "environments. When the user presents a problem, propose a step-by-step "
+    "solution and suggest improvements. Do not create malware, ransomware or "
+    "exploits ready for malicious use, and do not help attack systems "
+    "without authorization; in those cases, politely explain why you cannot "
+    "help and offer a defensive or educational alternative."
 )
 
+SUGERENCIAS = {
+    "🐍 Escribir código": "Escribe en Python una función que valide contraseñas seguras y explícala.",
+    "🔧 Modificar código": "Convierte este código de Python a JavaScript:\n\n```python\ndef suma(a, b):\n    return a + b\n```",
+    "🛡️ Práctica de ciberseguridad": "Propón un ejercicio práctico de inyección SQL en un laboratorio propio y cómo corregirlo.",
+    "🧩 Resolver un problema": "Mi aplicación web guarda contraseñas en texto plano. ¿Cómo lo soluciono paso a paso?",
+}
+
+# ---------------------------------------------------------------------------
+# Configuración de la página
+# ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Asistente Virtual de la Clase",
-    page_icon="🎓",
+    page_title="Asistente de Programación con IA",
+    page_icon="💻",
     layout="centered",
 )
 
 
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Funciones auxiliares
-# ----------------------------------------------------------------------------
-def obtener_cliente() -> Groq | None:
-    """Crea el cliente de Groq leyendo la clave desde st.secrets.
-
-    Devuelve None y muestra un mensaje de error si la configuración
-    es incorrecta.
-    """
+# ---------------------------------------------------------------------------
+def obtener_api_key() -> str | None:
+    """Lee la clave de API desde st.secrets. Devuelve None si no es válida."""
     try:
         clave = st.secrets[NOMBRE_SECRETO]
-    except FileNotFoundError:
-        st.error(
-            "⚠️ No se encontró el archivo de secretos. Crea "
-            "`.streamlit/secrets.toml` (ejecución local) o configura los "
-            "*Secrets* en Streamlit Community Cloud."
-        )
+    except Exception:
         return None
-    except KeyError:
-        st.error(
-            f"⚠️ Falta la clave `{NOMBRE_SECRETO}` en la configuración de "
-            "secretos. Agrégala en `secrets.toml` o en los *Secrets* de "
-            "Streamlit Community Cloud."
-        )
+    if not isinstance(clave, str):
         return None
-    except Exception as error:  # noqa: BLE001
-        st.error(f"⚠️ No se pudieron leer los secretos: {error}")
+    clave = clave.strip()
+    if not clave or clave.startswith("PEGA_AQUI"):
         return None
-
-    if not isinstance(clave, str) or not clave.strip():
-        st.error(
-            f"⚠️ La clave `{NOMBRE_SECRETO}` está vacía. Escribe una clave "
-            "de API válida de Groq."
-        )
-        return None
-
-    return Groq(api_key=clave.strip())
+    return clave
 
 
-def generar_respuesta(cliente: Groq, historial: list[dict]):
-    """Genera fragmentos de texto de la respuesta del modelo (streaming)."""
-    mensajes = [{"role": "system", "content": PROMPT_SISTEMA}]
-    mensajes += historial[-MAX_MENSAJES_CONTEXTO:]
+@st.cache_resource(show_spinner=False)
+def crear_cliente(api_key: str) -> Groq:
+    """Crea (y reutiliza) el cliente de Groq."""
+    return Groq(api_key=api_key)
 
+
+def construir_mensajes(historial: list[dict]) -> list[dict]:
+    """Arma la lista de mensajes enviada al modelo: sistema + historial reciente."""
+    recientes = historial[-MAX_MENSAJES_HISTORIAL:]
+    return [{"role": "system", "content": PROMPT_SISTEMA}, *recientes]
+
+
+def generar_respuesta(cliente: Groq, historial: list[dict], temperatura: float):
+    """Generador que entrega la respuesta del modelo por fragmentos (streaming)."""
     flujo = cliente.chat.completions.create(
         model=MODELO,
-        messages=mensajes,
-        temperature=0.6,
-        max_completion_tokens=2048,
+        messages=construir_mensajes(historial),
+        temperature=temperatura,
+        max_completion_tokens=4096,
         stream=True,
     )
     for fragmento in flujo:
@@ -94,88 +110,115 @@ def generar_respuesta(cliente: Groq, historial: list[dict]):
             yield texto
 
 
-def mensaje_de_error(error: Exception) -> str:
-    """Convierte excepciones de la API en mensajes comprensibles en español."""
-    if isinstance(error, AuthenticationError):
-        return (
-            "🔑 La clave de API no es válida o fue rechazada por Groq. "
-            "Verifica el valor de `LLAVE_PROFESOR`."
-        )
-    if isinstance(error, RateLimitError):
-        return (
-            "⏳ Se alcanzó el límite de uso de la API. Espera un momento e "
-            "inténtalo de nuevo."
-        )
-    if isinstance(error, APITimeoutError):
-        return "⌛ La conexión con Groq tardó demasiado. Inténtalo de nuevo."
-    if isinstance(error, APIConnectionError):
-        return (
-            "🌐 No fue posible conectar con Groq. Revisa tu conexión a "
-            "internet e inténtalo otra vez."
-        )
-    if isinstance(error, APIStatusError):
-        return (
-            f"❌ Groq respondió con un error (código {error.status_code}). "
-            "Inténtalo nuevamente en unos instantes."
-        )
-    return f"❌ Ocurrió un error inesperado: {error}"
-
-
-# ----------------------------------------------------------------------------
-# Interfaz
-# ----------------------------------------------------------------------------
-st.title("🎓 Asistente Virtual de la Clase")
-st.caption(f"Pregúntame lo que necesites sobre la clase · Modelo: {MODELO}")
-
-with st.sidebar:
-    st.header("Opciones")
-    if st.button("🗑️ Nueva conversación", use_container_width=True):
-        st.session_state.mensajes = []
-        st.rerun()
+def mostrar_error_configuracion() -> None:
+    st.error(
+        f"⚠️ No se encontró una clave de API válida en `{NOMBRE_SECRETO}`."
+    )
     st.markdown(
-        "Este asistente recuerda lo conversado durante tu sesión. "
-        "Si cierras o recargas la página, el historial se reinicia."
+        "**Cómo configurarla:**\n\n"
+        "- **Ejecución local:** crea el archivo `.streamlit/secrets.toml` "
+        "copiando `secrets.toml.example` y escribe tu clave de Groq.\n"
+        "- **Streamlit Community Cloud:** en tu app ve a "
+        "*Settings → Secrets* y pega:\n\n"
+        f'```toml\n{NOMBRE_SECRETO} = "tu_clave_de_groq"\n```\n'
+        "Puedes obtener una clave gratuita en https://console.groq.com/keys"
     )
 
+
+# ---------------------------------------------------------------------------
+# Estado de la sesión
+# ---------------------------------------------------------------------------
 if "mensajes" not in st.session_state:
     st.session_state.mensajes = []
 
-cliente = obtener_cliente()
+# ---------------------------------------------------------------------------
+# Barra lateral
+# ---------------------------------------------------------------------------
+with st.sidebar:
+    st.header("⚙️ Opciones")
+    temperatura = st.slider(
+        "Creatividad de las respuestas",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.3,
+        step=0.1,
+        help="Valores bajos dan respuestas más precisas; valores altos, más creativas.",
+    )
+    if st.button("🗑️ Borrar conversación", use_container_width=True):
+        st.session_state.mensajes = []
+        st.rerun()
 
-# Mostrar el historial de la conversación.
-for mensaje in st.session_state.mensajes:
-    avatar = "🧑‍🎓" if mensaje["role"] == "user" else "🎓"
-    with st.chat_message(mensaje["role"], avatar=avatar):
-        st.markdown(mensaje["content"])
+    st.divider()
+    st.subheader("💡 Ejemplos rápidos")
+    ejemplo_elegido = None
+    for etiqueta, texto in SUGERENCIAS.items():
+        if st.button(etiqueta, use_container_width=True):
+            ejemplo_elegido = texto
 
-# Entrada del usuario.
-pregunta = st.chat_input(
-    "Escribe tu pregunta aquí...",
-    disabled=cliente is None,
+    st.divider()
+    st.caption(f"Modelo: `{MODELO}` · Proveedor: Groq")
+    st.caption(
+        "Uso educativo y defensivo en ciberseguridad. "
+        "Practica solo en sistemas propios o con autorización."
+    )
+
+# ---------------------------------------------------------------------------
+# Interfaz principal
+# ---------------------------------------------------------------------------
+st.title("💻 Asistente de Programación con IA")
+st.caption(
+    "Pregunta en lenguaje natural: genera y modifica código en cualquier "
+    "lenguaje y practica resolución de problemas de ciberseguridad."
 )
 
-if pregunta and cliente is not None:
-    st.session_state.mensajes.append({"role": "user", "content": pregunta})
-    with st.chat_message("user", avatar="🧑‍🎓"):
-        st.markdown(pregunta)
+api_key = obtener_api_key()
+if api_key is None:
+    mostrar_error_configuracion()
+    st.stop()
 
-    with st.chat_message("assistant", avatar="🎓"):
+try:
+    cliente = crear_cliente(api_key)
+except Exception as error:
+    st.error(f"❌ No se pudo crear el cliente de Groq: {error}")
+    st.stop()
+
+# Mostrar el historial de la conversación
+for mensaje in st.session_state.mensajes:
+    with st.chat_message(mensaje["role"]):
+        st.markdown(mensaje["content"])
+
+if not st.session_state.mensajes:
+    st.info("👋 ¡Hola! Escribe tu pregunta abajo o elige un ejemplo en la barra lateral.")
+
+# Entrada del usuario
+entrada = st.chat_input("Escribe tu pregunta sobre código o ciberseguridad...")
+consulta = entrada or ejemplo_elegido
+
+if consulta:
+    st.session_state.mensajes.append({"role": "user", "content": consulta})
+    with st.chat_message("user"):
+        st.markdown(consulta)
+
+    with st.chat_message("assistant"):
         try:
             respuesta = st.write_stream(
-                generar_respuesta(cliente, st.session_state.mensajes)
+                generar_respuesta(cliente, st.session_state.mensajes, temperatura)
             )
-        except Exception as error:  # noqa: BLE001
-            st.error(mensaje_de_error(error))
-            # Se retira la pregunta fallida para mantener el historial coherente.
+            st.session_state.mensajes.append(
+                {"role": "assistant", "content": respuesta}
+            )
+        except AuthenticationError:
             st.session_state.mensajes.pop()
-        else:
-            if respuesta and str(respuesta).strip():
-                st.session_state.mensajes.append(
-                    {"role": "assistant", "content": str(respuesta)}
-                )
-            else:
-                st.warning(
-                    "El modelo no devolvió ninguna respuesta. "
-                    "Intenta reformular tu pregunta."
-                )
-                st.session_state.mensajes.pop()
+            st.error("🔑 La clave de API no es válida o fue revocada. Revisa tu configuración.")
+        except RateLimitError:
+            st.session_state.mensajes.pop()
+            st.error("⏳ Se alcanzó el límite de uso de la API. Espera un momento e inténtalo de nuevo.")
+        except APIConnectionError:
+            st.session_state.mensajes.pop()
+            st.error("🌐 No se pudo conectar con Groq. Revisa tu conexión a internet e inténtalo de nuevo.")
+        except APIStatusError as error:
+            st.session_state.mensajes.pop()
+            st.error(f"❌ Groq devolvió un error (código {error.status_code}). Inténtalo de nuevo.")
+        except Exception as error:
+            st.session_state.mensajes.pop()
+            st.error(f"❌ Ocurrió un error inesperado: {error}")
