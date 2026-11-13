@@ -1,20 +1,32 @@
-# 🎓 Asistente Virtual de la Clase
+# 🎓 Class Virtual Assistant (Asistente Virtual de la Clase)
 
-Aplicación web de chat creada con **Python 3.11** y **Streamlit** que usa el
-modelo `openai/gpt-oss-20b` mediante la **API de Groq**. Permite hacer
-preguntas en lenguaje natural, mantiene el historial durante la sesión y lo
-envía al modelo para conservar el contexto.
+A web chat app built with **Python 3.11** and **Streamlit** that uses the
+`openai/gpt-oss-20b` model through the **Groq API**. Students can ask questions
+in natural language; the app keeps the conversation history during the session
+and sends it to the model so it keeps the context.
 
-## Funcionalidades
+> The user interface is entirely in **Spanish**, and the assistant answers in Spanish.
 
-- Interfaz de chat completamente en español.
-- Respuestas en tiempo real (streaming).
-- Historial de la conversación durante la sesión, enviado al modelo en cada consulta.
-- Botón para iniciar una nueva conversación.
-- Clave de API leída desde `st.secrets["LLAVE_PROFESOR"]`.
-- Mensajes claros ante errores de configuración, autenticación, límites de uso o conexión.
+## Features
 
-## Estructura del proyecto
+- Chat interface with user and assistant messages.
+- Natural-language questions sent to `openai/gpt-oss-20b` via the Groq API.
+- Real-time (streaming) responses.
+- Conversation history kept in the session and sent to the model on every query
+  (the last 20 messages, to avoid exceeding the context window).
+- **"Nueva conversación"** button in the sidebar to reset the chat.
+- API key loaded from `st.secrets["LLAVE_PROFESOR"]`.
+- Clear error messages for:
+  - missing secrets file or missing/empty key,
+  - invalid API key,
+  - rate limits,
+  - timeouts and connection problems,
+  - other API errors or empty model responses.
+- Chat input is disabled while the configuration is invalid.
+- A failed question is removed from the history so the conversation stays consistent.
+- Runs locally and on Streamlit Community Cloud.
+
+## Project structure
 
 ```
 .
@@ -23,70 +35,126 @@ envía al modelo para conservar el contexto.
 ├── README.md
 ├── .gitignore
 └── .streamlit/
-    └── secrets.toml      # Local, NO se sube a GitHub
+    └── secrets.toml      # Local only, NOT committed to GitHub
 ```
 
-## Requisitos
+## Requirements
 
 - Python 3.11
-- Una clave de API de Groq (https://console.groq.com/keys)
+- A Groq API key (https://console.groq.com/keys)
 
-## Ejecución local
+## Running locally
 
-1. Crea y activa un entorno virtual:
+### 1. Create and activate a virtual environment
 
-   ```bash
-   python3.11 -m venv .venv
-   source .venv/bin/activate        # En Windows: .venv\Scripts\activate
-   ```
+**macOS / Linux**
 
-2. Instala las dependencias:
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+```
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+**Windows (PowerShell)**
 
-3. Crea el archivo `.streamlit/secrets.toml` con el siguiente contenido
-   (usa tu clave real):
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+```
 
-   ```toml
-   LLAVE_PROFESOR = "tu_clave_de_groq"
-   ```
+**Windows (Command Prompt / CMD)**
 
-4. Ejecuta la aplicación:
+```cmd
+py -3.11 -m venv .venv
+.venv\Scripts\activate.bat
+```
 
-   ```bash
-   streamlit run app.py
-   ```
+> If PowerShell shows *"running scripts is disabled on this system"*, see
+> [Troubleshooting](#troubleshooting).
 
-## Publicación en Streamlit Community Cloud
+### 2. Install dependencies
 
-1. Sube el proyecto a un repositorio de GitHub (el archivo `secrets.toml`
-   real está excluido por `.gitignore`).
-2. Entra a https://share.streamlit.io e inicia sesión con GitHub.
-3. Pulsa **Create app**, elige el repositorio, la rama y `app.py` como
-   archivo principal.
-4. En **Advanced settings**:
-   - Selecciona **Python 3.11**.
-   - En **Secrets**, pega:
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Configure your API key
+
+Create the file `.streamlit/secrets.toml` (copy the provided `secrets.toml`
+template) and add your real key:
+
+```toml
+LLAVE_PROFESOR = "your_groq_api_key"
+```
+
+### 4. Run the app
+
+```bash
+streamlit run app.py
+```
+
+## Deploying to Streamlit Community Cloud
+
+1. Push the project to a GitHub repository (the real `secrets.toml` is excluded
+   by `.gitignore`).
+2. Go to https://share.streamlit.io and sign in with GitHub.
+3. Click **Create app**, choose the repository, the branch and `app.py` as the
+   main file.
+4. Under **Advanced settings**:
+   - Select **Python 3.11**.
+   - In **Secrets**, paste:
 
      ```toml
-     LLAVE_PROFESOR = "tu_clave_de_groq"
+     LLAVE_PROFESOR = "your_groq_api_key"
      ```
-5. Pulsa **Deploy**.
+5. Click **Deploy**.
 
-## Solución de problemas
+## Troubleshooting
 
-| Mensaje | Causa probable |
+### PowerShell: "running scripts is disabled on this system"
+
+PowerShell's execution policy blocks the virtual environment activation script.
+Use any of these options:
+
+- **Allow scripts for your user only (recommended):**
+
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+
+- **Allow scripts only in the current window:**
+
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+  ```
+
+- **Use CMD** and run `.venv\Scripts\activate.bat`.
+- **Skip activation** and call the environment's Python directly:
+
+  ```powershell
+  .venv\Scripts\python.exe -m pip install -r requirements.txt
+  .venv\Scripts\python.exe -m streamlit run app.py
+  ```
+
+If your project path contains spaces (for example `AI for Coding`), wrap full
+paths in quotes.
+
+### Messages shown by the app
+
+The app interface is in Spanish; this table explains what each message means.
+
+| Message (Spanish) | Likely cause |
 |---|---|
-| No se encontró el archivo de secretos | Falta `.streamlit/secrets.toml` o los *Secrets* en la nube. |
-| Falta la clave `LLAVE_PROFESOR` | El nombre de la clave está mal escrito o no existe. |
-| La clave de API no es válida | La clave es incorrecta, está vencida o fue revocada. |
-| Límite de uso alcanzado | Demasiadas consultas en poco tiempo; espera e inténtalo de nuevo. |
-| No fue posible conectar con Groq | Problema de red o servicio temporalmente no disponible. |
+| No se encontró el archivo de secretos | `.streamlit/secrets.toml` or the Cloud *Secrets* are missing. |
+| Falta la clave `LLAVE_PROFESOR` | The key name is misspelled or does not exist. |
+| La clave está vacía | `LLAVE_PROFESOR` has no value. |
+| La clave de API no es válida | The key is wrong, expired or revoked. |
+| Se alcanzó el límite de uso | Too many requests in a short time; wait and retry. |
+| La conexión con Groq tardó demasiado | Request timed out; try again. |
+| No fue posible conectar con Groq | Network problem or the service is temporarily unavailable. |
+| El modelo no devolvió ninguna respuesta | Empty response; try rephrasing the question. |
 
-## Seguridad
+## Security
 
-- No escribas la clave de API dentro del código.
-- No subas `.streamlit/secrets.toml` a ningún repositorio.
-- Si una clave se expone, revócala y genera una nueva en la consola de Groq.
+- Never hard-code the API key in the source code.
+- Never commit `.streamlit/secrets.toml` to any repository.
+- If a key is exposed, revoke it and generate a new one in the Groq console.
