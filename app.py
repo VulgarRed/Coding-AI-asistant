@@ -48,17 +48,17 @@ PROMPT_SISTEMA = (
 )
 
 SUGERENCIAS = {
-    "🐍 Escribir código": "Escribe en Python una función que valide contraseñas seguras y explícala.",
-    "🔧 Modificar código": "Convierte este código de Python a JavaScript:\n\n```python\ndef suma(a, b):\n    return a + b\n```",
-    "🛡️ Práctica de ciberseguridad": "Propón un ejercicio práctico de inyección SQL en un laboratorio propio y cómo corregirlo.",
-    "🧩 Resolver un problema": "Mi aplicación web guarda contraseñas en texto plano. ¿Cómo lo soluciono paso a paso?",
+    "🐍 "Writing code": "Write a function in Python that validates secure passwords, and explain it."",
+    "🔧 "Modify code": "Convert this Python code to JavaScript:\n\n```python\ndef suma(a, b):\n    return a + b\n```",
+    "🛡️ "Cybersecurity practice: Propose a practical SQL injection exercise to be carried out in a controlled lab environment, along with how to remediate it."",
+    "🧩 "Solving a problem": "My web application stores passwords in plain text. How do I fix this, step by step?"",
 }
 
 # ---------------------------------------------------------------------------
 # Configuración de la página
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Asistente de Programación con IA",
+    page_title="AI Programing Asistant",
     page_icon="💻",
     layout="centered",
 )
@@ -112,7 +112,7 @@ def generar_respuesta(cliente: Groq, historial: list[dict], temperatura: float):
 
 def mostrar_error_configuracion() -> None:
     st.error(
-        f"⚠️ No se encontró una clave de API válida en `{NOMBRE_SECRETO}`."
+        f"⚠️ No valid API key was found in `{NOMBRE_SECRETO}`."
     )
     st.markdown(
         "**Cómo configurarla:**\n\n"
@@ -135,21 +135,21 @@ if "mensajes" not in st.session_state:
 # Barra lateral
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Opciones")
+    st.header("⚙️ Options")
     temperatura = st.slider(
-        "Creatividad de las respuestas",
+        "Creativity of the responses",
         min_value=0.0,
         max_value=1.0,
         value=0.3,
         step=0.1,
-        help="Valores bajos dan respuestas más precisas; valores altos, más creativas.",
+        help="Low values ​​yield more precise responses; high values, more creative ones.",
     )
-    if st.button("🗑️ Borrar conversación", use_container_width=True):
+    if st.button("🗑️ Delete conversation", use_container_width=True):
         st.session_state.mensajes = []
         st.rerun()
 
     st.divider()
-    st.subheader("💡 Ejemplos rápidos")
+    st.subheader("💡 Quick examples")
     ejemplo_elegido = None
     for etiqueta, texto in SUGERENCIAS.items():
         if st.button(etiqueta, use_container_width=True):
@@ -158,17 +158,17 @@ with st.sidebar:
     st.divider()
     st.caption(f"Modelo: `{MODELO}` · Proveedor: Groq")
     st.caption(
-        "Uso educativo y defensivo en ciberseguridad. "
-        "Practica solo en sistemas propios o con autorización."
+        "Educational and defensive use in cybersecurity. "
+        "Practice only on systems you own or have authorization for."
     )
 
 # ---------------------------------------------------------------------------
 # Interfaz principal
 # ---------------------------------------------------------------------------
-st.title("💻 Asistente de Programación con IA")
+st.title("💻 AI Programming Assistant")
 st.caption(
-    "Pregunta en lenguaje natural: genera y modifica código en cualquier "
-    "lenguaje y practica resolución de problemas de ciberseguridad."
+    "Ask a question in natural language: Generate and modify code in any language."
+    "Language and practice for cybersecurity problem-solving."
 )
 
 api_key = obtener_api_key()
@@ -179,7 +179,7 @@ if api_key is None:
 try:
     cliente = crear_cliente(api_key)
 except Exception as error:
-    st.error(f"❌ No se pudo crear el cliente de Groq: {error}")
+    st.error(f"❌ Failed to create the Groq client: {error}")
     st.stop()
 
 # Mostrar el historial de la conversación
@@ -188,10 +188,10 @@ for mensaje in st.session_state.mensajes:
         st.markdown(mensaje["content"])
 
 if not st.session_state.mensajes:
-    st.info("👋 ¡Hola! Escribe tu pregunta abajo o elige un ejemplo en la barra lateral.")
+    st.info("👋 Hello! Type your question below or choose an example from the sidebar.")
 
 # Entrada del usuario
-entrada = st.chat_input("Escribe tu pregunta sobre código o ciberseguridad...")
+entrada = st.chat_input("Write your question about code or cybersecurity...")
 consulta = entrada or ejemplo_elegido
 
 if consulta:
@@ -209,16 +209,16 @@ if consulta:
             )
         except AuthenticationError:
             st.session_state.mensajes.pop()
-            st.error("🔑 La clave de API no es válida o fue revocada. Revisa tu configuración.")
+            st.error("🔑 The API key is invalid or has been revoked. Check your settings.")
         except RateLimitError:
             st.session_state.mensajes.pop()
-            st.error("⏳ Se alcanzó el límite de uso de la API. Espera un momento e inténtalo de nuevo.")
+            st.error("⏳ The API usage limit has been reached. Please wait a moment and try again.")
         except APIConnectionError:
             st.session_state.mensajes.pop()
-            st.error("🌐 No se pudo conectar con Groq. Revisa tu conexión a internet e inténtalo de nuevo.")
+            st.error("🌐 Could not connect to Groq. Check your internet connection and try again.")
         except APIStatusError as error:
             st.session_state.mensajes.pop()
-            st.error(f"❌ Groq devolvió un error (código {error.status_code}). Inténtalo de nuevo.")
+            st.error(f"❌ Groq returned an error (código {error.status_code}). Try again.")
         except Exception as error:
             st.session_state.mensajes.pop()
-            st.error(f"❌ Ocurrió un error inesperado: {error}")
+            st.error(f"❌ An unexpected error occurred: {error}")
