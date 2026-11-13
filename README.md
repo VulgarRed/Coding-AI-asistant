@@ -5,7 +5,7 @@ A web chat app built with **Python 3.11** and **Streamlit** that uses the
 in natural language; the app keeps the conversation history during the session
 and sends it to the model so it keeps the context.
 
-> The user interface is entirely in **Spanish**, and the assistant answers in Spanish.
+> The user interface is entirely in **Spanish**, and the assistant answers in English.
 
 ## Features
 
